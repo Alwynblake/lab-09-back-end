@@ -1,6 +1,8 @@
 DROP TABLE IF EXISTS weathers;
 DROP TABLE IF EXISTS restaurants;
 DROP TABLE IF EXISTS movies;
+DROP TABLE IF EXISTS meetups;
+DROP TABLE IF EXISTS trails;
 DROP TABLE IF EXISTS locations;
 
 CREATE TABLE locations
@@ -63,6 +65,7 @@ CREATE TABLE trails
     id SERIAL PRIMARY KEY,
     name VARCHAR(255),
     location VARCHAR(255),
+    length VARCHAR(255),
     stars VARCHAR(255),
     star_votes VARCHAR(255),
     summary VARCHAR(255),

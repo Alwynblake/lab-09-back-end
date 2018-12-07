@@ -26,6 +26,8 @@ app.get('/weather', getWeather);
 app.get('/yelp', getYelp);
 app.get('/movies', getMovies);
 app.get('/meetups', getMeetUp);
+app.get('/trails', getTrail);
+
 //handle errors
 function handleError(err, res) {
   console.error(err);
@@ -63,7 +65,7 @@ function Location(query, data) {
 }
 
 //save to database method
-Location.prototype.save = function() {
+Location.prototype.save = function () {
   let SQL = `
   INSERT INTO locations
     (search_query,formatted_query,latitude,longitude)
@@ -78,7 +80,7 @@ Location.prototype.save = function() {
 Location.fetchLocation = query => {
   const _URL = `https://maps.googleapis.com/maps/api/geocode/json?address=${query}&key=${
     process.env.GEOCODE_API_KEY
-  }`;
+    }`;
   return superagent.get(_URL).then(data => {
     console.log('Got data from API');
     if (!data.body.results.length) {
@@ -110,15 +112,69 @@ Location.lookupLocation = handler => {
     })
     .catch(console.error);
 };
+//trails functions
+function getTrail(request, response) {
+  const handler = {
+    location: request.query.data,
+    cacheHit: function (result) {
+      response.send(result.rows);
+    },
+    cacheMiss: function () {
+      Trail.fetch(request.query.data)
+        .then(result => response.send(result))
+        .catch(error => handleError(error));
+    }
+  };
+  Trail.lookup(handler);
+}
+Trail.lookup = function (handler) {
+  const SQL = `SELECT * FROM trails WHERE location_id=$1;`;
+  client
+    .query(SQL, [handler.location.id])
+    .then(result => {
+      if (result.rowCount > 0) {
+        console.log('Got data from SQL');
+        handler.cacheHit(result);
+      } else {
+        console.log('Got data from API');
+        handler.cacheMiss();
+      }
+    })
+    .catch(error => handleError(error));
+};
+
+Trail.fetch = function (location) {
+  const url = `https://www.hikingproject.com/data/get-trails?key=${process.env.TRAIL_API_KEY}&lat=${location.latitude}&lon=${location.longitude}&maxDistance=10`
+
+  return superagent.get(url).then(result => {
+    const trailSummaries = result.body.trails.map(day => {
+      const summary = new Trail(day);
+      summary.save(location.id);
+      return summary;
+    });
+    return trailSummaries;
+  });
+};
+
+Trail.prototype.save = function (id) {
+  const SQL = `
+  INSERT INTO trails
+    (name,location,length,stars,star_votes,summary,trail_url,conditions,condition_date,condition_time,location_id)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+  `;
+  const values = Object.values(this);
+  values.push(id);
+  client.query(SQL, values);
+};
 
 //Weather functions
 function getWeather(request, response) {
   const handler = {
     location: request.query.data,
-    cacheHit: function(result) {
+    cacheHit: function (result) {
       response.send(result.rows);
     },
-    cacheMiss: function() {
+    cacheMiss: function () {
       Weather.fetch(request.query.data)
         .then(result => response.send(result))
         .catch(console.error);
@@ -132,14 +188,14 @@ function Weather(day) {
   this.time = new Date(day.time * 1000).toDateString();
 }
 
-Weather.prototype.save = function(id) {
+Weather.prototype.save = function (id) {
   const SQL = `INSERT INTO weathers (forecast, time, location_id) VALUES ($1, $2, $3);`;
   const values = Object.values(this);
   values.push(id);
   client.query(SQL, values);
 };
 
-Weather.lookup = function(handler) {
+Weather.lookup = function (handler) {
   const SQL = `SELECT * FROM weathers WHERE location_id=$1;`;
   client
     .query(SQL, [handler.location.id])
@@ -155,10 +211,10 @@ Weather.lookup = function(handler) {
     .catch(error => handleError(error));
 };
 
-Weather.fetch = function(location) {
+Weather.fetch = function (location) {
   const url = `https://api.darksky.net/forecast/${
     process.env.WEATHER_API_KEY
-  }/${location.latitude},${location.longitude}`;
+    }/${location.latitude},${location.longitude}`;
 
   return superagent.get(url).then(result => {
     const weatherSummaries = result.body.daily.data.map(day => {
@@ -175,10 +231,10 @@ Weather.fetch = function(location) {
 function getYelp(request, response) {
   const handler = {
     location: request.query.data,
-    cacheHit: function(result) {
+    cacheHit: function (result) {
       response.send(result.rows);
     },
-    cacheMiss: function() {
+    cacheMiss: function () {
       Restaurant.fetch(request.query.data)
         .then(result => {
           response.send(result);
@@ -198,15 +254,28 @@ function Restaurant(data) {
   this.url = data.url;
 }
 
+function Trail(data) {
+  this.name = data.name;
+  this.location = data.location;
+  this.length = data.length + ' miles';
+  this.stars = data.stars;
+  this.star_votes = data.star_votes;
+  this.summary = data.summary;
+  this.trail_url = data.url;
+  this.conditions = data.conditionStatus;
+  // let conditionsArrary = data.conditionDate.split(' ');
+  this.condition_date = data.conditionsDate;
+  this.condiion_time = data.conditionsDate;
+}
 //save db method
-Restaurant.prototype.save = function(id) {
+Restaurant.prototype.save = function (id) {
   const SQL = `INSERT INTO restaurants (name,image_url,price,rating,url,location_id) VALUES ($1, $2, $3, $4, $5, $6);`;
   const values = Object.values(this);
   values.push(id);
   client.query(SQL, values);
 };
 //fetch api data and send to db
-Restaurant.lookup = function(handler) {
+Restaurant.lookup = function (handler) {
   const SQL = `SELECT * FROM restaurants WHERE location_id=$1`;
   client
     .query(SQL, [handler.location.id])
@@ -222,11 +291,11 @@ Restaurant.lookup = function(handler) {
     .catch(error => handleError(error));
 };
 //look up restaurants
-Restaurant.fetch = function(location) {
+Restaurant.fetch = function (location) {
   return superagent
     .get(
       `https://api.yelp.com/v3/businesses/search?location=${
-        location.search_query
+      location.search_query
       }/${location.latitude},${location.longitude}`
     )
     .set('Authorization', `Bearer ${process.env.YELP_API_KEY}`)
@@ -244,10 +313,10 @@ Restaurant.fetch = function(location) {
 function getMovies(request, response) {
   const handler = {
     location: request.query.data,
-    cacheHit: function(result) {
+    cacheHit: function (result) {
       response.send(result.rows);
     },
-    cacheMiss: function() {
+    cacheMiss: function () {
       Movies.fetch(request.query.data)
         .then(result => response.send(result))
         .catch(console.error);
@@ -266,14 +335,14 @@ function Movies(data) {
   this.popularity = data.popularity;
   this.released_on = data.release_date;
 }
-Movies.prototype.save = function(id) {
+Movies.prototype.save = function (id) {
   const SQL = `INSERT INTO movies (title,overview,average_votes,total_votes,image_url,popularity,released_on,location_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`;
   const values = Object.values(this);
   values.push(id);
   client.query(SQL, values);
 };
 
-Movies.lookup = function(handler) {
+Movies.lookup = function (handler) {
   const SQL = `Select * From movies WHERE location_id=$1`;
   client
     .query(SQL, [handler.location.id])
@@ -289,10 +358,10 @@ Movies.lookup = function(handler) {
     .catch(error => handleError(error));
 };
 
-Movies.fetch = function(location) {
+Movies.fetch = function (location) {
   const url = `https://api.themoviedb.org/3/search/movie?api_key=${
     process.env.TMDB_API_KEY
-  }&query=${location.search_query}`;
+    }&query=${location.search_query}`;
 
   return superagent.get(url).then(result => {
     const movieSummaries = result.body.results.map(data => {
@@ -309,10 +378,10 @@ Movies.fetch = function(location) {
 function getMeetUp(request, response) {
   const handler = {
     location: request.query.data,
-    cacheHit: function(result) {
+    cacheHit: function (result) {
       response.send(result.rows);
     },
-    cacheMiss: function() {
+    cacheMiss: function () {
       MeetUps.fetch(request.query.data)
         .then(result => response.send(result))
         .catch(console.error);
@@ -332,7 +401,7 @@ function MeetUps(data) {
   this.host = data.organizer.name;
 }
 
-MeetUps.prototype.save = function(id) {
+MeetUps.prototype.save = function (id) {
   //TODO write save function
   const SQL = `INSERT INTO meetups (link,name,creation_date,host,location_id) VALUES ($1, $2, $3, $4, $5);`;
   const values = Object.values(this);
@@ -340,7 +409,7 @@ MeetUps.prototype.save = function(id) {
   client.query(SQL, values);
 };
 
-MeetUps.lookup = function(handler) {
+MeetUps.lookup = function (handler) {
   const SQL = `Select * From meetups WHERE location_id=$1`;
   client
     .query(SQL, [handler.location.id])
@@ -356,10 +425,10 @@ MeetUps.lookup = function(handler) {
     .catch(error => handleError(error));
 };
 
-MeetUps.fetch = function(location) {
+MeetUps.fetch = function (location) {
   const url = `https://api.meetup.com/find/groups?sign=true&photo-host=public&location=${
     location.search_query
-  }&page=20&key=${process.env.MEETUP_API_KEY}`;
+    }&page=20&key=${process.env.MEETUP_API_KEY}`;
 
   return superagent.get(url).then(result => {
     const meetupSummaries = result.body.map(data => {
