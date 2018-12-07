@@ -54,6 +54,7 @@ CREATE TABLE meetups
     name VARCHAR(255),
     creation_date VARCHAR(255),
     host VARCHAR(255),
+    location_id INTEGER NOT NULL,
     FOREIGN KEY (location_id) REFERENCES locations (id)
 );
 
@@ -69,5 +70,6 @@ CREATE TABLE trails
     conditions VARCHAR(255),
     condition_date VARCHAR(255),
     condition_time VARCHAR(255),
+    location_id INTEGER NOT NULL,
     FOREIGN KEY (location_id) REFERENCES locations (id)
-)
+);
