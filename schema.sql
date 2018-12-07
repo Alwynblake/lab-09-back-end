@@ -32,6 +32,7 @@ CREATE TABLE restaurants
     price VARCHAR(255),
     rating VARCHAR(255),
     url VARCHAR(255),
+    created_at BIGINT,
     location_id INTEGER NOT NULL,
     FOREIGN KEY (location_id) REFERENCES locations (id)
 );
@@ -46,6 +47,7 @@ CREATE TABLE movies
     image_url VARCHAR(255),
     popularity VARCHAR(255),
     released_on VARCHAR(255),
+    created_at BIGINT,
     location_id INTEGER NOT NULL,
     FOREIGN KEY (location_id) REFERENCES locations (id)
 );
@@ -57,6 +59,7 @@ CREATE TABLE meetups
     name VARCHAR(255),
     creation_date VARCHAR(255),
     host VARCHAR(255),
+    created_at BIGINT,
     location_id INTEGER NOT NULL,
     FOREIGN KEY (location_id) REFERENCES locations (id)
 );
@@ -74,6 +77,7 @@ CREATE TABLE trails
     conditions VARCHAR(255),
     condition_date VARCHAR(255),
     condition_time VARCHAR(255),
+    created_at BIGINT,
     location_id INTEGER NOT NULL,
     FOREIGN KEY (location_id) REFERENCES locations (id)
 );

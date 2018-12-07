@@ -119,15 +119,26 @@ Location.lookupLocation = handler => {
     .catch(console.error);
 };
 
+Weather.deleteByLocationId = deleteByLocationId;
 
 //Weather functions
 function getWeather(request, response) {
   const handler = {
     location: request.query.data,
     cacheHit: function (result) {
-      response.send(result.rows);
+      console.log('cacheHit is firing');
+      let ageOfResultsInMinutes = (Date.now() - result.rows[0].created_at) / (1000 * 60);
+      if (ageOfResultsInMinutes > 1) {
+        console.log('going to delete');
+        Weather.deleteByLocationId(Weather.tableName, request.query.data.id);
+        this.cacheMiss();
+      } else {
+        console.log('keeping results');
+        response.send(result.rows);
+      }
     },
     cacheMiss: function () {
+      console.log('cacheMiss is firing')
       Weather.fetch(request.query.data)
         .then(result => response.send(result))
         .catch(console.error);
@@ -176,6 +187,7 @@ Weather.fetch = function (location) {
       summary.save(location.id);
       return summary;
     });
+    console.log('fetch ran');
     return weatherSummaries;
   });
 };
@@ -206,12 +218,13 @@ function Restaurant(data) {
   this.price = data.price;
   this.rating = data.rating;
   this.url = data.url;
+  this.created_at = Date.now();
 }
 
 
 //save db method
 Restaurant.prototype.save = function (id) {
-  const SQL = `INSERT INTO restaurants (name,image_url,price,rating,url,location_id) VALUES ($1, $2, $3, $4, $5, $6);`;
+  const SQL = `INSERT INTO restaurants (name,image_url,price,rating,url,created_at,location_id) VALUES ($1, $2, $3, $4, $5, $6,$7);`;
   const values = Object.values(this);
   values.push(id);
   client.query(SQL, values);
@@ -276,9 +289,10 @@ function Movies(data) {
     'https://image.tmdb.org/t/p/w370_and_h556_bestv2/' + data.poster_path;
   this.popularity = data.popularity;
   this.released_on = data.release_date;
+  this.created_at = Date.now();
 }
 Movies.prototype.save = function (id) {
-  const SQL = `INSERT INTO movies (title,overview,average_votes,total_votes,image_url,popularity,released_on,location_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`;
+  const SQL = `INSERT INTO movies (title,overview,average_votes,total_votes,image_url,popularity,released_on,created_at,location_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`;
   const values = Object.values(this);
   values.push(id);
   client.query(SQL, values);
@@ -334,18 +348,15 @@ function getMeetUp(request, response) {
 
 function MeetUps(data) {
   this.link = data.link;
-  console.log(this.link);
   this.name = data.name;
-  console.log(this.name);
   this.creation_date = new Date(data.created * 1000).toDateString();
-  console.log(this.creation_date);
-
   this.host = data.organizer.name;
+  this.created_at = Date.now();
 }
 
 MeetUps.prototype.save = function (id) {
   //TODO write save function
-  const SQL = `INSERT INTO meetups (link,name,creation_date,host,location_id) VALUES ($1, $2, $3, $4, $5);`;
+  const SQL = `INSERT INTO meetups (link,name,creation_date,host,created_at,location_id) VALUES ($1, $2, $3, $4, $5, $6);`;
   const values = Object.values(this);
   values.push(id);
   client.query(SQL, values);
@@ -410,6 +421,7 @@ function Trail(data) {
   // let conditionsArrary = data.conditionDate.split(' ');
   this.condition_date = data.conditionsDate;
   this.condiion_time = data.conditionsDate;
+  this.created_at = Date.now();
 }
 
 Trail.lookup = function (handler) {
@@ -444,8 +456,8 @@ Trail.fetch = function (location) {
 Trail.prototype.save = function (id) {
   const SQL = `
   INSERT INTO trails
-    (name,location,length,stars,star_votes,summary,trail_url,conditions,condition_date,condition_time,location_id)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+    (name,location,length,stars,star_votes,summary,trail_url,conditions,condition_date,condition_time,created_at,location_id)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
   `;
   const values = Object.values(this);
   values.push(id);
