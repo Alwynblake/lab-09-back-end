@@ -34,6 +34,12 @@ function handleError(err, res) {
   if (res) res.status(500).send('Sorry - Something Broke');
 }
 
+//delete function
+function deleteByLocationId(table, city) {
+  const SQL = `DELETE from ${table} WHERE location_id=${city};`;
+  return client.query(SQL);
+}
+
 // start the server
 app.listen(PORT, () => {
   console.log(`listening on ${PORT}`);
@@ -112,60 +118,7 @@ Location.lookupLocation = handler => {
     })
     .catch(console.error);
 };
-//trails functions
-function getTrail(request, response) {
-  const handler = {
-    location: request.query.data,
-    cacheHit: function (result) {
-      response.send(result.rows);
-    },
-    cacheMiss: function () {
-      Trail.fetch(request.query.data)
-        .then(result => response.send(result))
-        .catch(error => handleError(error));
-    }
-  };
-  Trail.lookup(handler);
-}
-Trail.lookup = function (handler) {
-  const SQL = `SELECT * FROM trails WHERE location_id=$1;`;
-  client
-    .query(SQL, [handler.location.id])
-    .then(result => {
-      if (result.rowCount > 0) {
-        console.log('Got data from SQL');
-        handler.cacheHit(result);
-      } else {
-        console.log('Got data from API');
-        handler.cacheMiss();
-      }
-    })
-    .catch(error => handleError(error));
-};
 
-Trail.fetch = function (location) {
-  const url = `https://www.hikingproject.com/data/get-trails?key=${process.env.TRAIL_API_KEY}&lat=${location.latitude}&lon=${location.longitude}&maxDistance=10`
-
-  return superagent.get(url).then(result => {
-    const trailSummaries = result.body.trails.map(day => {
-      const summary = new Trail(day);
-      summary.save(location.id);
-      return summary;
-    });
-    return trailSummaries;
-  });
-};
-
-Trail.prototype.save = function (id) {
-  const SQL = `
-  INSERT INTO trails
-    (name,location,length,stars,star_votes,summary,trail_url,conditions,condition_date,condition_time,location_id)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-  `;
-  const values = Object.values(this);
-  values.push(id);
-  client.query(SQL, values);
-};
 
 //Weather functions
 function getWeather(request, response) {
@@ -254,19 +207,7 @@ function Restaurant(data) {
   this.url = data.url;
 }
 
-function Trail(data) {
-  this.name = data.name;
-  this.location = data.location;
-  this.length = data.length + ' miles';
-  this.stars = data.stars;
-  this.star_votes = data.star_votes;
-  this.summary = data.summary;
-  this.trail_url = data.url;
-  this.conditions = data.conditionStatus;
-  // let conditionsArrary = data.conditionDate.split(' ');
-  this.condition_date = data.conditionsDate;
-  this.condiion_time = data.conditionsDate;
-}
+
 //save db method
 Restaurant.prototype.save = function (id) {
   const SQL = `INSERT INTO restaurants (name,image_url,price,rating,url,location_id) VALUES ($1, $2, $3, $4, $5, $6);`;
@@ -438,4 +379,74 @@ MeetUps.fetch = function (location) {
     });
     return meetupSummaries;
   });
+};
+
+//trails functions
+function getTrail(request, response) {
+  const handler = {
+    location: request.query.data,
+    cacheHit: function (result) {
+      response.send(result.rows);
+    },
+    cacheMiss: function () {
+      Trail.fetch(request.query.data)
+        .then(result => response.send(result))
+        .catch(error => handleError(error));
+    }
+  };
+  Trail.lookup(handler);
+}
+
+function Trail(data) {
+  this.name = data.name;
+  this.location = data.location;
+  this.length = data.length + ' miles';
+  this.stars = data.stars;
+  this.star_votes = data.star_votes;
+  this.summary = data.summary;
+  this.trail_url = data.url;
+  this.conditions = data.conditionStatus;
+  // let conditionsArrary = data.conditionDate.split(' ');
+  this.condition_date = data.conditionsDate;
+  this.condiion_time = data.conditionsDate;
+}
+
+Trail.lookup = function (handler) {
+  const SQL = `SELECT * FROM trails WHERE location_id=$1;`;
+  client
+    .query(SQL, [handler.location.id])
+    .then(result => {
+      if (result.rowCount > 0) {
+        console.log('Got data from SQL');
+        handler.cacheHit(result);
+      } else {
+        console.log('Got data from API');
+        handler.cacheMiss();
+      }
+    })
+    .catch(error => handleError(error));
+};
+
+Trail.fetch = function (location) {
+  const url = `https://www.hikingproject.com/data/get-trails?key=${process.env.TRAIL_API_KEY}&lat=${location.latitude}&lon=${location.longitude}&maxDistance=10`
+
+  return superagent.get(url).then(result => {
+    const trailSummaries = result.body.trails.map(day => {
+      const summary = new Trail(day);
+      summary.save(location.id);
+      return summary;
+    });
+    return trailSummaries;
+  });
+};
+
+Trail.prototype.save = function (id) {
+  const SQL = `
+  INSERT INTO trails
+    (name,location,length,stars,star_votes,summary,trail_url,conditions,condition_date,condition_time,location_id)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+  `;
+  const values = Object.values(this);
+  values.push(id);
+  client.query(SQL, values);
 };
