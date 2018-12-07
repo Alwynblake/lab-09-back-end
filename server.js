@@ -25,6 +25,7 @@ app.get('/location', getLocation);
 app.get('/weather', getWeather);
 app.get('/yelp', getYelp);
 app.get('/movies', getMovies);
+app.get('/meetups', getMeetUp);
 //handle errors
 function handleError(err, res) {
   console.error(err);
@@ -178,12 +179,12 @@ function getYelp(request, response) {
       response.send(result.rows);
     },
     cacheMiss: function() {
-     Restaurant.fetch(request.query.data)
+      Restaurant.fetch(request.query.data)
         .then(result => {
-            response.send(result);
+          response.send(result);
         })
         .catch(console.error);
-    },
+    }
   };
   Restaurant.lookup(handler);
 }
@@ -222,8 +223,12 @@ Restaurant.lookup = function(handler) {
 };
 //look up restaurants
 Restaurant.fetch = function(location) {
-  return superagent.get(
-    `https://api.yelp.com/v3/businesses/search?location=${location.search_query}/${location.latitude},${location.longitude}`)
+  return superagent
+    .get(
+      `https://api.yelp.com/v3/businesses/search?location=${
+        location.search_query
+      }/${location.latitude},${location.longitude}`
+    )
     .set('Authorization', `Bearer ${process.env.YELP_API_KEY}`)
     .then(result => {
       const yelpSummaries = result.body.businesses.map(data => {
@@ -231,26 +236,24 @@ Restaurant.fetch = function(location) {
         summary.save(location.id);
         return summary;
       });
-      return yelpSummaries;    
+      return yelpSummaries;
     });
 };
 
-
 //Movie Functions
 function getMovies(request, response) {
-    const handler = {
-        location: request.query.data,
-        cacheHit: function(result) {
-            response.send(result.rows);
-
-        },
-        cacheMiss: function (){
-            Movies.fetch(request.query.data)
-                .then(result => response.send(result))
-                .catch(console.error);
-        }
-    };
-    Movies.lookup(handler);
+  const handler = {
+    location: request.query.data,
+    cacheHit: function(result) {
+      response.send(result.rows);
+    },
+    cacheMiss: function() {
+      Movies.fetch(request.query.data)
+        .then(result => response.send(result))
+        .catch(console.error);
+    }
+  };
+  Movies.lookup(handler);
 }
 
 function Movies(data) {
@@ -264,36 +267,106 @@ function Movies(data) {
   this.released_on = data.release_date;
 }
 Movies.prototype.save = function(id) {
-    const SQL = `INSERT INTO movies (title,overview,average_votes,total_votes,image_url,popularity,released_on,location_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`;
-    const values = Object.values(this);
-    values.push(id);
-    client.query(SQL, values);
+  const SQL = `INSERT INTO movies (title,overview,average_votes,total_votes,image_url,popularity,released_on,location_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`;
+  const values = Object.values(this);
+  values.push(id);
+  client.query(SQL, values);
 };
 
 Movies.lookup = function(handler) {
-    const SQL = `Select * From movies WHERE location_id=$1`;
-    client.query(SQL, [handler.location.id])
+  const SQL = `Select * From movies WHERE location_id=$1`;
+  client
+    .query(SQL, [handler.location.id])
     .then(result => {
-        if (result.rowCount >0){
-            console.log('Got data from SQL');
-            handler.cacheHit(result);
-        } else {
-            console.log('Got data from API');
-            handler.cacheMiss();
-        }
+      if (result.rowCount > 0) {
+        console.log('Got data from SQL');
+        handler.cacheHit(result);
+      } else {
+        console.log('Got data from API');
+        handler.cacheMiss();
+      }
     })
     .catch(error => handleError(error));
 };
 
 Movies.fetch = function(location) {
-    const url = `https://api.themoviedb.org/3/search/movie?api_key=${process.env.TMDB_API_KEY}&query=${location.search_query}`
+  const url = `https://api.themoviedb.org/3/search/movie?api_key=${
+    process.env.TMDB_API_KEY
+  }&query=${location.search_query}`;
 
-    return superagent.get(url).then(result => {
-        const movieSummaries = result.body.results.map(data=>{
-            const summary = new Movies(data);
-            summary.save(location.id);
-            return summary;
-        });
-        return movieSummaries;
-    })
+  return superagent.get(url).then(result => {
+    const movieSummaries = result.body.results.map(data => {
+      const summary = new Movies(data);
+      summary.save(location.id);
+      return summary;
+    });
+    return movieSummaries;
+  });
+};
+
+//Meet up functions
+
+function getMeetUp(request, response) {
+  const handler = {
+    location: request.query.data,
+    cacheHit: function(result) {
+      response.send(result.rows);
+    },
+    cacheMiss: function() {
+      MeetUps.fetch(request.query.data)
+        .then(result => response.send(result))
+        .catch(console.error);
+    }
+  };
+  MeetUps.lookup(handler);
 }
+
+function MeetUps(data) {
+  this.link = data.link;
+  console.log(this.link);
+  this.name = data.name;
+  console.log(this.name);
+  this.creation_date = new Date(data.created * 1000).toDateString();
+  console.log(this.creation_date);
+
+  this.host = data.organizer.name;
+}
+
+MeetUps.prototype.save = function(id) {
+  //TODO write save function
+  const SQL = `INSERT INTO meetups (link,name,creation_date,host,location_id) VALUES ($1, $2, $3, $4, $5);`;
+  const values = Object.values(this);
+  values.push(id);
+  client.query(SQL, values);
+};
+
+MeetUps.lookup = function(handler) {
+  const SQL = `Select * From meetups WHERE location_id=$1`;
+  client
+    .query(SQL, [handler.location.id])
+    .then(result => {
+      if (result.rowCount > 0) {
+        console.log('Got data from SQL');
+        handler.cacheHit(result);
+      } else {
+        console.log('Got data from API');
+        handler.cacheMiss();
+      }
+    })
+    .catch(error => handleError(error));
+};
+
+MeetUps.fetch = function(location) {
+  const url = `https://api.meetup.com/find/groups?sign=true&photo-host=public&location=${
+    location.search_query
+  }&page=20&key=${process.env.MEETUP_API_KEY}`;
+
+  return superagent.get(url).then(result => {
+    const meetupSummaries = result.body.map(data => {
+      const summary = new MeetUps(data);
+      summary.save(location.id);
+      return summary;
+    });
+    return meetupSummaries;
+  });
+};

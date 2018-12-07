@@ -46,3 +46,30 @@ CREATE TABLE movies
     location_id INTEGER NOT NULL,
     FOREIGN KEY (location_id) REFERENCES locations (id)
 );
+
+CREATE TABLE meetups
+(
+    id SERIAL PRIMARY KEY,
+    link VARCHAR(255),
+    name VARCHAR(255),
+    creation_date VARCHAR(255),
+    host VARCHAR(255),
+    location_id INTEGER NOT NULL,
+    FOREIGN KEY (location_id) REFERENCES locations (id)
+);
+
+CREATE TABLE trails
+(
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255),
+    location VARCHAR(255),
+    stars VARCHAR(255),
+    star_votes VARCHAR(255),
+    summary VARCHAR(255),
+    trail_url VARCHAR(255),
+    conditions VARCHAR(255),
+    condition_date VARCHAR(255),
+    condition_time VARCHAR(255),
+    location_id INTEGER NOT NULL,
+    FOREIGN KEY (location_id) REFERENCES locations (id)
+);
