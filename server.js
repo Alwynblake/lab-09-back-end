@@ -120,6 +120,11 @@ Location.lookupLocation = handler => {
 };
 
 Weather.deleteByLocationId = deleteByLocationId;
+Restaurant.deleteByLocationId = deleteByLocationId;
+Movies.deleteByLocationId = deleteByLocationId;
+MeetUps.deleteByLocationId = deleteByLocationId;
+Trail.deleteByLocationId = deleteByLocationId;
+
 
 //Weather functions
 function getWeather(request, response) {
@@ -128,7 +133,7 @@ function getWeather(request, response) {
     cacheHit: function (result) {
       console.log('cacheHit is firing');
       let ageOfResultsInMinutes = (Date.now() - result.rows[0].created_at) / (1000 * 60);
-      if (ageOfResultsInMinutes > 1) {
+      if (ageOfResultsInMinutes > 30) {
         console.log('going to delete');
         Weather.deleteByLocationId(Weather.tableName, request.query.data.id);
         this.cacheMiss();
@@ -192,13 +197,23 @@ Weather.fetch = function (location) {
   });
 };
 
+
 //Yelp functions
 //pull from cache or make requests
 function getYelp(request, response) {
   const handler = {
     location: request.query.data,
     cacheHit: function (result) {
-      response.send(result.rows);
+      console.log('cacheHit is firing');
+      let ageOfResultsInMinutes = (Date.now() - result.rows[0].created_at) / (1000 * 60);
+      if (ageOfResultsInMinutes > 10080 ) {
+        console.log('going to delete');
+        Weather.deleteByLocationId(Weather.tableName, request.query.data.id);
+        this.cacheMiss();
+      } else {
+        console.log('keeping results');
+        response.send(result.rows);
+      }
     },
     cacheMiss: function () {
       Restaurant.fetch(request.query.data)
@@ -269,7 +284,16 @@ function getMovies(request, response) {
   const handler = {
     location: request.query.data,
     cacheHit: function (result) {
-      response.send(result.rows);
+      console.log('cacheHit is firing');
+      let ageOfResultsInMinutes = (Date.now() - result.rows[0].created_at) / (1000 * 60);
+      if (ageOfResultsInMinutes > 1440) {
+        console.log('going to delete');
+        Weather.deleteByLocationId(Weather.tableName, request.query.data.id);
+        this.cacheMiss();
+      } else {
+        console.log('keeping results');
+        response.send(result.rows);
+      }
     },
     cacheMiss: function () {
       Movies.fetch(request.query.data)
@@ -335,7 +359,16 @@ function getMeetUp(request, response) {
   const handler = {
     location: request.query.data,
     cacheHit: function (result) {
-      response.send(result.rows);
+      console.log('cacheHit is firing');
+      let ageOfResultsInMinutes = (Date.now() - result.rows[0].created_at) / (1000 * 60);
+      if (ageOfResultsInMinutes > 1440) {
+        console.log('going to delete');
+        Weather.deleteByLocationId(Weather.tableName, request.query.data.id);
+        this.cacheMiss();
+      } else {
+        console.log('keeping results');
+        response.send(result.rows);
+      }
     },
     cacheMiss: function () {
       MeetUps.fetch(request.query.data)
@@ -398,7 +431,16 @@ function getTrail(request, response) {
   const handler = {
     location: request.query.data,
     cacheHit: function (result) {
-      response.send(result.rows);
+      console.log('cacheHit is firing');
+      let ageOfResultsInMinutes = (Date.now() - result.rows[0].created_at) / (1000 * 60);
+      if (ageOfResultsInMinutes > 1440 ) {
+        console.log('going to delete');
+        Weather.deleteByLocationId(Weather.tableName, request.query.data.id);
+        this.cacheMiss();
+      } else {
+        console.log('keeping results');
+        response.send(result.rows);
+      }
     },
     cacheMiss: function () {
       Trail.fetch(request.query.data)
