@@ -71,11 +71,28 @@ With Assistance from: Caitlyn and James
 
 Number and name of feature: #1 
 
-Estimate of time needed to complete: 5 hours
-Start time: 9:00
+Estimate of time needed to complete: 1hr
+Start time: 9
 
-Finish time: 1:30
+Finish time: 10
 
-Actual time needed to complete: 4 hours 30 minutes
+Actual time needed to complete: 1
 
 -
+Number and name of feature: #2
+
+Estimate of time needed to complete: 1hr
+Start time: 10
+
+Finish time: 11:45
+
+Actual time needed to complete: 1:45
+-
+Number and name of feature: #3
+
+Estimate of time needed to complete: 1hr
+Start time: 11:45
+
+Finish time: 1:45
+
+Actual time needed to complete: 2 hours
