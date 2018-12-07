@@ -34,6 +34,12 @@ function handleError(err, res) {
   if (res) res.status(500).send('Sorry - Something Broke');
 }
 
+//delete function
+function deleteByLocationId(table, city) {
+  const SQL = `DELETE from ${table} WHERE location_id=${city};`;
+  return client.query(SQL);
+}
+
 // start the server
 app.listen(PORT, () => {
   console.log(`listening on ${PORT}`);
@@ -112,69 +118,32 @@ Location.lookupLocation = handler => {
     })
     .catch(console.error);
 };
-//trails functions
-function getTrail(request, response) {
-  const handler = {
-    location: request.query.data,
-    cacheHit: function (result) {
-      response.send(result.rows);
-    },
-    cacheMiss: function () {
-      Trail.fetch(request.query.data)
-        .then(result => response.send(result))
-        .catch(error => handleError(error));
-    }
-  };
-  Trail.lookup(handler);
-}
-Trail.lookup = function (handler) {
-  const SQL = `SELECT * FROM trails WHERE location_id=$1;`;
-  client
-    .query(SQL, [handler.location.id])
-    .then(result => {
-      if (result.rowCount > 0) {
-        console.log('Got data from SQL');
-        handler.cacheHit(result);
-      } else {
-        console.log('Got data from API');
-        handler.cacheMiss();
-      }
-    })
-    .catch(error => handleError(error));
-};
 
-Trail.fetch = function (location) {
-  const url = `https://www.hikingproject.com/data/get-trails?key=${process.env.TRAIL_API_KEY}&lat=${location.latitude}&lon=${location.longitude}&maxDistance=10`
+Weather.deleteByLocationId = deleteByLocationId;
+Restaurant.deleteByLocationId = deleteByLocationId;
+Movies.deleteByLocationId = deleteByLocationId;
+MeetUps.deleteByLocationId = deleteByLocationId;
+Trail.deleteByLocationId = deleteByLocationId;
 
-  return superagent.get(url).then(result => {
-    const trailSummaries = result.body.trails.map(day => {
-      const summary = new Trail(day);
-      summary.save(location.id);
-      return summary;
-    });
-    return trailSummaries;
-  });
-};
-
-Trail.prototype.save = function (id) {
-  const SQL = `
-  INSERT INTO trails
-    (name,location,length,stars,star_votes,summary,trail_url,conditions,condition_date,condition_time,location_id)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-  `;
-  const values = Object.values(this);
-  values.push(id);
-  client.query(SQL, values);
-};
 
 //Weather functions
 function getWeather(request, response) {
   const handler = {
     location: request.query.data,
     cacheHit: function (result) {
-      response.send(result.rows);
+      console.log('cacheHit is firing');
+      let ageOfResultsInMinutes = (Date.now() - result.rows[0].created_at) / (1000 * 60);
+      if (ageOfResultsInMinutes > 30) {
+        console.log('going to delete');
+        Weather.deleteByLocationId(Weather.tableName, request.query.data.id);
+        this.cacheMiss();
+      } else {
+        console.log('keeping results');
+        response.send(result.rows);
+      }
     },
     cacheMiss: function () {
+      console.log('cacheMiss is firing')
       Weather.fetch(request.query.data)
         .then(result => response.send(result))
         .catch(console.error);
@@ -186,10 +155,11 @@ function getWeather(request, response) {
 function Weather(day) {
   this.forecast = day.summary;
   this.time = new Date(day.time * 1000).toDateString();
+  this.created_at = Date.now();
 }
 
 Weather.prototype.save = function (id) {
-  const SQL = `INSERT INTO weathers (forecast, time, location_id) VALUES ($1, $2, $3);`;
+  const SQL = `INSERT INTO weathers (forecast, time, created_at, location_id) VALUES ($1, $2, $3, $4);`;
   const values = Object.values(this);
   values.push(id);
   client.query(SQL, values);
@@ -222,9 +192,11 @@ Weather.fetch = function (location) {
       summary.save(location.id);
       return summary;
     });
+    console.log('fetch ran');
     return weatherSummaries;
   });
 };
+
 
 //Yelp functions
 //pull from cache or make requests
@@ -232,7 +204,16 @@ function getYelp(request, response) {
   const handler = {
     location: request.query.data,
     cacheHit: function (result) {
-      response.send(result.rows);
+      console.log('cacheHit is firing');
+      let ageOfResultsInMinutes = (Date.now() - result.rows[0].created_at) / (1000 * 60);
+      if (ageOfResultsInMinutes > 10080 ) {
+        console.log('going to delete');
+        Weather.deleteByLocationId(Weather.tableName, request.query.data.id);
+        this.cacheMiss();
+      } else {
+        console.log('keeping results');
+        response.send(result.rows);
+      }
     },
     cacheMiss: function () {
       Restaurant.fetch(request.query.data)
@@ -252,24 +233,13 @@ function Restaurant(data) {
   this.price = data.price;
   this.rating = data.rating;
   this.url = data.url;
+  this.created_at = Date.now();
 }
 
-function Trail(data) {
-  this.name = data.name;
-  this.location = data.location;
-  this.length = data.length + ' miles';
-  this.stars = data.stars;
-  this.star_votes = data.star_votes;
-  this.summary = data.summary;
-  this.trail_url = data.url;
-  this.conditions = data.conditionStatus;
-  // let conditionsArrary = data.conditionDate.split(' ');
-  this.condition_date = data.conditionsDate;
-  this.condiion_time = data.conditionsDate;
-}
+
 //save db method
 Restaurant.prototype.save = function (id) {
-  const SQL = `INSERT INTO restaurants (name,image_url,price,rating,url,location_id) VALUES ($1, $2, $3, $4, $5, $6);`;
+  const SQL = `INSERT INTO restaurants (name,image_url,price,rating,url,created_at,location_id) VALUES ($1, $2, $3, $4, $5, $6,$7);`;
   const values = Object.values(this);
   values.push(id);
   client.query(SQL, values);
@@ -314,7 +284,16 @@ function getMovies(request, response) {
   const handler = {
     location: request.query.data,
     cacheHit: function (result) {
-      response.send(result.rows);
+      console.log('cacheHit is firing');
+      let ageOfResultsInMinutes = (Date.now() - result.rows[0].created_at) / (1000 * 60);
+      if (ageOfResultsInMinutes > 1440) {
+        console.log('going to delete');
+        Weather.deleteByLocationId(Weather.tableName, request.query.data.id);
+        this.cacheMiss();
+      } else {
+        console.log('keeping results');
+        response.send(result.rows);
+      }
     },
     cacheMiss: function () {
       Movies.fetch(request.query.data)
@@ -334,9 +313,10 @@ function Movies(data) {
     'https://image.tmdb.org/t/p/w370_and_h556_bestv2/' + data.poster_path;
   this.popularity = data.popularity;
   this.released_on = data.release_date;
+  this.created_at = Date.now();
 }
 Movies.prototype.save = function (id) {
-  const SQL = `INSERT INTO movies (title,overview,average_votes,total_votes,image_url,popularity,released_on,location_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`;
+  const SQL = `INSERT INTO movies (title,overview,average_votes,total_votes,image_url,popularity,released_on,created_at,location_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`;
   const values = Object.values(this);
   values.push(id);
   client.query(SQL, values);
@@ -379,7 +359,16 @@ function getMeetUp(request, response) {
   const handler = {
     location: request.query.data,
     cacheHit: function (result) {
-      response.send(result.rows);
+      console.log('cacheHit is firing');
+      let ageOfResultsInMinutes = (Date.now() - result.rows[0].created_at) / (1000 * 60);
+      if (ageOfResultsInMinutes > 1440) {
+        console.log('going to delete');
+        Weather.deleteByLocationId(Weather.tableName, request.query.data.id);
+        this.cacheMiss();
+      } else {
+        console.log('keeping results');
+        response.send(result.rows);
+      }
     },
     cacheMiss: function () {
       MeetUps.fetch(request.query.data)
@@ -392,18 +381,15 @@ function getMeetUp(request, response) {
 
 function MeetUps(data) {
   this.link = data.link;
-  console.log(this.link);
   this.name = data.name;
-  console.log(this.name);
   this.creation_date = new Date(data.created * 1000).toDateString();
-  console.log(this.creation_date);
-
   this.host = data.organizer.name;
+  this.created_at = Date.now();
 }
 
 MeetUps.prototype.save = function (id) {
   //TODO write save function
-  const SQL = `INSERT INTO meetups (link,name,creation_date,host,location_id) VALUES ($1, $2, $3, $4, $5);`;
+  const SQL = `INSERT INTO meetups (link,name,creation_date,host,created_at,location_id) VALUES ($1, $2, $3, $4, $5, $6);`;
   const values = Object.values(this);
   values.push(id);
   client.query(SQL, values);
@@ -438,4 +424,84 @@ MeetUps.fetch = function (location) {
     });
     return meetupSummaries;
   });
+};
+
+//trails functions
+function getTrail(request, response) {
+  const handler = {
+    location: request.query.data,
+    cacheHit: function (result) {
+      console.log('cacheHit is firing');
+      let ageOfResultsInMinutes = (Date.now() - result.rows[0].created_at) / (1000 * 60);
+      if (ageOfResultsInMinutes > 1440 ) {
+        console.log('going to delete');
+        Weather.deleteByLocationId(Weather.tableName, request.query.data.id);
+        this.cacheMiss();
+      } else {
+        console.log('keeping results');
+        response.send(result.rows);
+      }
+    },
+    cacheMiss: function () {
+      Trail.fetch(request.query.data)
+        .then(result => response.send(result))
+        .catch(error => handleError(error));
+    }
+  };
+  Trail.lookup(handler);
+}
+
+function Trail(data) {
+  this.name = data.name;
+  this.location = data.location;
+  this.length = data.length + ' miles';
+  this.stars = data.stars;
+  this.star_votes = data.star_votes;
+  this.summary = data.summary;
+  this.trail_url = data.url;
+  this.conditions = data.conditionStatus;
+  // let conditionsArrary = data.conditionDate.split(' ');
+  this.condition_date = data.conditionsDate;
+  this.condiion_time = data.conditionsDate;
+  this.created_at = Date.now();
+}
+
+Trail.lookup = function (handler) {
+  const SQL = `SELECT * FROM trails WHERE location_id=$1;`;
+  client
+    .query(SQL, [handler.location.id])
+    .then(result => {
+      if (result.rowCount > 0) {
+        console.log('Got data from SQL');
+        handler.cacheHit(result);
+      } else {
+        console.log('Got data from API');
+        handler.cacheMiss();
+      }
+    })
+    .catch(error => handleError(error));
+};
+
+Trail.fetch = function (location) {
+  const url = `https://www.hikingproject.com/data/get-trails?key=${process.env.TRAIL_API_KEY}&lat=${location.latitude}&lon=${location.longitude}&maxDistance=10`
+
+  return superagent.get(url).then(result => {
+    const trailSummaries = result.body.trails.map(day => {
+      const summary = new Trail(day);
+      summary.save(location.id);
+      return summary;
+    });
+    return trailSummaries;
+  });
+};
+
+Trail.prototype.save = function (id) {
+  const SQL = `
+  INSERT INTO trails
+    (name,location,length,stars,star_votes,summary,trail_url,conditions,condition_date,condition_time,created_at,location_id)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+  `;
+  const values = Object.values(this);
+  values.push(id);
+  client.query(SQL, values);
 };
